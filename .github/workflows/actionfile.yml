@@ -127,12 +127,10 @@ jobs:
       # 7. Configure AWS credentials using GitHub OIDC
       #
       # AWS_ROLE_ARN and AWS_REGION are Repository Secrets.
-      # ---------------------------------------------------------
+      # ---------------------------------------------------------   
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          echo "role-to-assume: ${{ secrets.AWS_ROLE_ARN }}"
-          echo "aws-region: ${{ secrets.AWS_REGION }}"
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
       - name: Test aws acesss
