@@ -105,7 +105,8 @@ jobs:
           echo "OpenTofu environment detected: $ENVIRONMENT"
 
           # Make ENVIRONMENT available to subsequent steps
-          echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
+          # echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
+          
 
       # ---------------------------------------------------------
       # 5. Create environment directory
