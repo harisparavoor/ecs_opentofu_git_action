@@ -15,10 +15,9 @@ jobs:
   deploy:
     name: OpenTofu Deploy
     runs-on: ubuntu-latest
-
-    env:
-      TF_IN_AUTOMATION: true
-      TF_INPUT: false
+    #env:
+      #TF_IN_AUTOMATION: true
+     # TF_INPUT: false
 
     steps:
 
