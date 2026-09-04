@@ -26,12 +26,12 @@ module "ecr" {
 
 
 module "alb" {
-  source                = "./modules/alb"
-  vpc_id                = module.vpc.vpc_id
-  public_subnet_ids     = module.vpc.public_subnet_ids
-  environment           = var.environment
-  domain_name           = var.domain_name
-  acm_certificate_arn   = module.acm.certificate_arn
+  source              = "./modules/alb"
+  vpc_id              = module.vpc.vpc_id
+  public_subnet_ids   = module.vpc.public_subnet_ids
+  environment         = var.environment
+  domain_name         = var.domain_name
+  acm_certificate_arn = module.acm.certificate_arn
   #route53_zone_id      = var.route53_zone_id
   alb_security_group_id = module.vpc.alb_security_group_id
   logs_bucket_name      = module.s3.logs_bucket_name

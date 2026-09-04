@@ -135,8 +135,9 @@ jobs:
 
           chmod 600 \
             "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
-            - name: Format tfvars
-           run: terraform fmt "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+      - name: Format tfvars
+        run: |
+         tofu fmt "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
 
       # ---------------------------------------------------------
       # 7. Configure AWS using GitHub OIDC
