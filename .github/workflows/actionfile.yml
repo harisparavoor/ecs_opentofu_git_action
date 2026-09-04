@@ -1,5 +1,4 @@
 name: OpenTofu Deployment
-
 on:
   push:
 
@@ -132,9 +131,12 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          echo "role-to-assume: ${{ secrets.AWS_ROLE_ARN }}"
+          echo "aws-region: ${{ secrets.AWS_REGION }}"
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
-
+      - name: Test aws acesss
+        run: aws sts get-caller-identity    
       # ---------------------------------------------------------
       # 8. OpenTofu format check
       # ---------------------------------------------------------
