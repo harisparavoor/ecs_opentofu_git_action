@@ -33,20 +33,6 @@ jobs:
           echo "Branch     : ${{ github.ref_name }}"
           echo "Commit     : ${{ github.sha }}"
           echo "Event      : ${{ github.event_name }}"
-          echo "role-to-assume: ${{ secrets.AWS_ROLE_ARN }}"
-          echo "aws-region: ${{ secrets.AWS_REGION }}"
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      # ---------------------------------------------------------
-      # 8. Verify AWS identity
-      # ---------------------------------------------------------
-      - name: Verify AWS access
-        run: |
-          aws sts get-caller-identity
       # ---------------------------------------------------------
       # 2. Install OpenTofu
       # ---------------------------------------------------------
@@ -117,9 +103,8 @@ jobs:
           echo "OpenTofu environment detected: $ENVIRONMENT"
 
           # Make ENVIRONMENT available to subsequent steps
-          # echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
+           echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
           
-
       # ---------------------------------------------------------
       # 5. Create environment directory
       #
@@ -160,6 +145,11 @@ jobs:
       # AWS_REGION:
       # Repository variable/secret containing AWS region
       # ---------------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       # ---------------------------------------------------------
       # 9. Check OpenTofu formatting
