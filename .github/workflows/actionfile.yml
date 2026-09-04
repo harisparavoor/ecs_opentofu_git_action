@@ -1,14 +1,187 @@
-# This workflow installs the latest version of Terraform CLI and configures the Terraform CLI configuration file
-# with an API token for Terraform Cloud (app.terraform.io). On pull request events, this workflow will run
-# `terraform init`, `terraform fmt`, and `terraform plan` (speculative plan via Terraform Cloud). On push events
-# to the "main" branch, `terraform apply` will be executed.
-#
-# Documentation for `hashicorp/setup-terraform` is located here: https://github.com/hashicorp/setup-terraform
-#
-# To use this workflow, you will need to complete the following setup steps.
-#
-# 1. Create a `main.tf` file in the root of this repository with the `remote` backend and one or more resources defined.
-#   Example `main.tf`:
-#     # The configuration for the `remote` backend.
-#
+name: OpenTofu Deployment
 
+on:
+  push:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      TF_IN_AUTOMATION: true
+      TF_INPUT: false
+
+    steps:
+
+      # ---------------------------------------------------------
+      # 1. Checkout the branch where the push happened
+      # ---------------------------------------------------------
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------
+      # 2. Setup OpenTofu
+      # ---------------------------------------------------------
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      # ---------------------------------------------------------
+      # 3. Create temporary terraform.tfvars from Repository Secret
+      #
+      # TF_VARS example:
+      #
+      # project_name   = "myecsnodeapp"
+      # aws_region     = "us-east-1"
+      # environment    = "dev"
+      # vpc_cidr_block = "10.20.0.0/16"
+      # db_name        = "mytestapp"
+      # db_username    = "dbadmin01"
+      # db_password    = "useradmin"
+      # ---------------------------------------------------------
+      - name: Create terraform.tfvars from secret
+        shell: bash
+        env:
+          TF_VARS: ${{ secrets.TF_VARS }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$TF_VARS" ]; then
+            echo "ERROR: TF_VARS repository secret is empty or not configured."
+            exit 1
+          fi
+
+          # Create temporary file
+          printf '%s\n' "$TF_VARS" > /tmp/terraform.tfvars
+
+          chmod 600 /tmp/terraform.tfvars
+
+      # ---------------------------------------------------------
+      # 4. Extract Terraform environment from TF_VARS
+      #
+      # Example:
+      #
+      # environment = "dev"
+      #
+      # Result:
+      #
+      # ENVIRONMENT=dev
+      # ---------------------------------------------------------
+      - name: Read environment from TF_VARS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ENVIRONMENT=$(awk -F'=' '
+            /^[[:space:]]*environment[[:space:]]*=/ {
+              value=$2
+              gsub(/[[:space:]]/, "", value)
+              gsub(/"/, "", value)
+              print value
+              exit
+            }
+          ' /tmp/terraform.tfvars)
+
+          if [ -z "$ENVIRONMENT" ]; then
+            echo "ERROR: environment is not defined in TF_VARS."
+            exit 1
+          fi
+
+          echo "Terraform environment: $ENVIRONMENT"
+
+          # Validate environment directory name
+          if [[ ! "$ENVIRONMENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "ERROR: Invalid environment value: $ENVIRONMENT"
+            exit 1
+          fi
+
+          echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------
+      # 5. Create environment directory
+      # ---------------------------------------------------------
+      - name: Create Terraform environment directory
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "infrastructure/environments/${ENVIRONMENT}"
+
+      # ---------------------------------------------------------
+      # 6. Copy secret into the correct environment directory
+      # ---------------------------------------------------------
+      - name: Create environment terraform.tfvars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cp /tmp/terraform.tfvars \
+             "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+
+          chmod 600 \
+             "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+
+      # ---------------------------------------------------------
+      # 7. Configure AWS credentials using GitHub OIDC
+      #
+      # AWS_ROLE_ARN and AWS_REGION are Repository Secrets.
+      # ---------------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # ---------------------------------------------------------
+      # 8. OpenTofu format check
+      # ---------------------------------------------------------
+      - name: OpenTofu format check
+        working-directory: infrastructure
+        run: |
+          tofu fmt -check -recursive
+
+      # ---------------------------------------------------------
+      # 9. OpenTofu Init
+      # ---------------------------------------------------------
+      - name: OpenTofu Init
+        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        run: |
+          tofu init
+
+      # ---------------------------------------------------------
+      # 10. OpenTofu Validate
+      # ---------------------------------------------------------
+      - name: OpenTofu Validate
+        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        run: |
+          tofu validate
+
+      # ---------------------------------------------------------
+      # 11. OpenTofu Plan
+      # ---------------------------------------------------------
+      - name: OpenTofu Plan
+        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        run: |
+          tofu plan -out=tfplan
+
+      # ---------------------------------------------------------
+      # 12. OpenTofu Apply
+      # ---------------------------------------------------------
+      - name: OpenTofu Apply
+        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        run: |
+          tofu apply -auto-approve tfplan
+
+      # ---------------------------------------------------------
+      # 13. Cleanup sensitive files
+      # ---------------------------------------------------------
+      - name: Cleanup terraform.tfvars
+        if: always()
+        shell: bash
+        run: |
+          rm -f /tmp/terraform.tfvars
+          rm -f "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+          rm -f "infrastructure/environments/${ENVIRONMENT}/tfplan"
