@@ -33,6 +33,8 @@ jobs:
           echo "Branch     : ${{ github.ref_name }}"
           echo "Commit     : ${{ github.sha }}"
           echo "Event      : ${{ github.event_name }}"
+          echo "role-to-assume: ${{ secrets.AWS_ROLE_ARN }}"
+          echo "aws-region: ${{ secrets.AWS_REGION }}"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
