@@ -1,0 +1,70 @@
+# ==========================================
+# OpenTofu / Terraform
+# ==========================================
+
+# OpenTofu working directory
+.tofu/
+
+# Terraform working directory
+.terraform/
+
+# State files
+*.tfstate
+*.tfstate.*
+terraform.tfstate
+terraform.tfstate.*
+tofu.tfstate
+tofu.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Plan files
+*.tfplan
+tfplan
+tofu.plan
+
+# Variable files
+*.tfvars
+*.tfvars.json
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Dependency lock files
+# KEEP .terraform.lock.hcl in Git
+# .terraform.lock.hcl
+
+# ==========================================
+# Secrets / Environment
+# ==========================================
+
+.env
+.env.*
+*.env
+
+# Local scripts containing credentials
+*-local.sh
+*-local.ps1
+
+# ==========================================
+# IDE / Editor
+# ==========================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# OS
+# ==========================================
+
+.DS_Store
+Thumbs.db
+desktop.ini
