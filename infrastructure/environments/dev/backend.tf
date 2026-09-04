@@ -3,7 +3,7 @@ terraform {
     bucket  = "mystatetestfile"
     key     = "ecs/git/opentofu/dev/terraform.tfstate"
     region  = "us-east-1"
-    profile = "devuser"
+    #profile = "devuser"
     encrypt = true
     #dynamodb_table = "terraform-lock-table"
   }
