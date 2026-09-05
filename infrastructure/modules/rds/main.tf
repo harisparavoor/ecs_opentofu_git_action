@@ -1,10 +1,10 @@
 resource "aws_db_subnet_group" "main" {
-name = "${var.environment}-db-subnet-group"
+name = "${var.project_name}-${var.environment}-db-subnet-group"
 subnet_ids = var.subnet_ids
 }
 
 resource "aws_db_instance" "main" {
-identifier = "${var.environment}-db-instance"
+identifier = "${var.project_name}-${var.environment}-db-instance"
 allocated_storage = 20
 storage_type = "gp2"
 engine = "postgres"

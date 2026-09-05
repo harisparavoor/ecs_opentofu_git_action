@@ -11,6 +11,7 @@ module "rds" {
   vpc_id                = module.vpc.vpc_id
   subnet_ids            = module.vpc.private_subnet_ids
   environment           = var.environment
+  project_name              = var.project_name
   db_name               = var.db_name
   db_username           = var.db_username
   db_password           = var.db_password
