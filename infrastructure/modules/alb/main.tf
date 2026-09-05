@@ -1,7 +1,7 @@
 # ALB Configuration for ECS Native Rolling Deployment (no CodeDeploy target-group swap)
 
 resource "aws_lb" "main" {
-  name               = "${var.environment}-alb"
+  name               = "${var.project_name}-${var.environment}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [var.alb_security_group_id]
@@ -18,7 +18,7 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "frontend" {
-  name        = "${var.environment}-frontend-tg"
+  name        = "${var.tg_tag}-frontend-tg"
   port        = 3000
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -40,7 +40,7 @@ resource "aws_lb_target_group" "frontend" {
 }
 
 resource "aws_lb_target_group" "backend" {
-  name        = "${var.environment}-backend-tg"
+  name        = "${var.tg_tag}-backend-tg"
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id

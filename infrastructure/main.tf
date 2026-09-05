@@ -11,7 +11,7 @@ module "rds" {
   vpc_id                = module.vpc.vpc_id
   subnet_ids            = module.vpc.private_subnet_ids
   environment           = var.environment
-  project_name              = var.project_name
+  project_name          = var.project_name
   db_name               = var.db_name
   db_username           = var.db_username
   db_password           = var.db_password
@@ -31,7 +31,9 @@ module "alb" {
   vpc_id              = module.vpc.vpc_id
   public_subnet_ids   = module.vpc.public_subnet_ids
   environment         = var.environment
+  project_name        = var.project_name
   domain_name         = var.domain_name
+  tg_tag              = "${var.project_name}-${var.environment}"
   acm_certificate_arn = module.acm.certificate_arn
   #route53_zone_id      = var.route53_zone_id
   alb_security_group_id = module.vpc.alb_security_group_id

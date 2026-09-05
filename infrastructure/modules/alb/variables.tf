@@ -3,6 +3,11 @@ description = "Deployment environment"
 type = string
 }
 
+variable "project_name" {
+description = "Name of the project"
+type = string
+}
+
 variable "vpc_id" {
 description = "VPC ID"
 type = string
@@ -41,4 +46,9 @@ variable "logs_bucket_name" {
 variable "alb_logs_policy" {
   description = "Reference to the S3 bucket policy resource"
   type        = any
+}
+
+variable "tg_tag" {
+description = "TAG TAG"
+type = string
 }
