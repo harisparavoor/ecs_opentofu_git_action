@@ -160,7 +160,7 @@ jobs:
       - name: OpenTofu format check
         working-directory: infrastructure
         run: |
-          tofu fmt -check
+          tofu fmt -recursive
 
       # ---------------------------------------------------------
       # 10. Initialize OpenTofu
