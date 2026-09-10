@@ -1,0 +1,312 @@
+name: mulit-env-infra-deployment
+# -------------------------------------------------------------------------
+# Environment selection
+#
+# Explicit environment input wins.
+# Otherwise:
+#
+#   prod       -> prod
+#   uat        -> uat
+#   staging    -> staging
+#   sit        -> sit
+#   dev        -> dev
+#   hotfix/*   -> dev
+#   anything   -> dev
+# -------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (blank = infer from branch)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - dev
+          - staging
+          - uat
+          - sit
+          - prod
+
+      branch:
+        description: "Branch to deploy (blank = current workflow branch)"
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+
+  # =========================================================================
+  # JOB 1: Resolve environment
+  # =========================================================================
+
+  resolve-environment:
+    name: Resolve target environment
+    runs-on: ubuntu-24.04
+
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      environment_upper: ${{ steps.resolve.outputs.environment_upper }}
+      branch: ${{ steps.resolve.outputs.branch }}
+
+    steps:
+
+      - name: Resolve environment and branch
+        id: resolve
+        shell: bash
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_BRANCH: ${{ inputs.branch }}
+          TRIGGER_REF_NAME: ${{ github.ref_name }}
+
+        run: |
+          set -euo pipefail
+
+          # ---------------------------------------------------------------
+          # Determine branch
+          # ---------------------------------------------------------------
+
+          BRANCH="${INPUT_BRANCH:-$TRIGGER_REF_NAME}"
+
+          if [[ -z "$BRANCH" ]]; then
+            echo "::error::Branch could not be determined."
+            exit 1
+          fi
+
+          # ---------------------------------------------------------------
+          # Explicit environment wins
+          # ---------------------------------------------------------------
+
+          if [[ -n "$INPUT_ENVIRONMENT" ]]; then
+
+            ENVIRONMENT="$INPUT_ENVIRONMENT"
+
+          else
+
+            case "$BRANCH" in
+              prod)
+                ENVIRONMENT="prod"
+                ;;
+
+              uat)
+                ENVIRONMENT="uat"
+                ;;
+
+              staging)
+                ENVIRONMENT="staging"
+                ;;
+
+              sit)
+                ENVIRONMENT="sit"
+                ;;
+
+              dev)
+                ENVIRONMENT="dev"
+                ;;
+
+              hotfix/*)
+                ENVIRONMENT="dev"
+                ;;
+
+              *)
+                # Any unrecognized branch -> DEV
+                ENVIRONMENT="dev"
+                ;;
+            esac
+
+          fi
+
+          # ---------------------------------------------------------------
+          # Convert lowercase environment to uppercase
+          # ---------------------------------------------------------------
+
+          ENVIRONMENT_UPPER="${ENVIRONMENT^^}"
+
+          echo "Branch            : $BRANCH"
+          echo "Environment       : $ENVIRONMENT"
+          echo "Environment upper : $ENVIRONMENT_UPPER"
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "environment_upper=$ENVIRONMENT_UPPER" >> "$GITHUB_OUTPUT"
+
+
+  # =========================================================================
+  # JOB 2: Deploy
+  # =========================================================================
+
+  deploy:
+    name: Deploy  to ${{ needs.resolve-environment.outputs.environment }}
+
+    needs:
+      - resolve-environment
+
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: true
+      TF_INPUT: false
+
+    # -----------------------------------------------------------------------
+    # Optional GitHub Environment protection
+    #
+    # The resolved environment is still attached here.
+    #
+    # This means PROD can have required reviewers/protection rules.
+    # -----------------------------------------------------------------------
+    environment:
+      name: ${{ needs.resolve-environment.outputs.environment }}
+        echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
+
+    concurrency:
+      group: chat-be-deploy-${{ needs.resolve-environment.outputs.environment }}
+      cancel-in-progress: false
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+
+      # =====================================================================
+      # Checkout selected branch
+      # =====================================================================
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-environment.outputs.branch }}
+          fetch-depth: 0
+  
+      # ---------------------------------------------------------
+      # 2. Install OpenTofu
+      # ---------------------------------------------------------
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+
+      # --------------------------------------------------------     
+      # ---------------------------------------------------------
+      # 5. Create environment directory
+      #
+      # Example:
+      # infrastructure/environments/dev/
+      # infrastructure/environments/stage/
+      # infrastructure/environments/prod/
+      # ---------------------------------------------------------
+      - name: Create Terraform environment directory
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p \
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}"
+
+      # ---------------------------------------------------------
+      # 6. Copy temporary TF_VARS into selected environment
+      # ---------------------------------------------------------
+      - name: Create environment terraform.tfvars
+        shell: bash
+        env:
+          TF_VARS: ${{ secrets.TF_VARS }}
+        run: |
+         set -euo pipefail
+
+          if [ -z "$TF_VARS" ]; then
+            echo "ERROR: TF_VARS repository secret is empty or not configured."
+            exit 1
+          fi
+
+          printf '%s\n' "$TF_VARS" > /tmp/terraform.tfvars
+
+          chmod 600 /tmp/terraform.tfvars
+
+          echo "Temporary terraform.tfvars created."
+          cat /tmp/terraform.tfvars
+        
+          cp \
+            /tmp/terraform.tfvars \
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
+
+          chmod 600 \
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
+      - name: Format tfvars
+        run: |
+         tofu fmt "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
+
+      # ---------------------------------------------------------
+      # 7. Configure AWS using GitHub OIDC
+      #
+      # AWS_ROLE_ARN:
+      # Repository secret containing the IAM role ARN
+      #
+      # AWS_REGION:
+      # Repository variable/secret containing AWS region
+      # ---------------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # ---------------------------------------------------------
+      # 9. Check OpenTofu formatting
+      # ---------------------------------------------------------
+      - name: OpenTofu format check
+        working-directory: infrastructure
+        run: |
+          tofu fmt -recursive
+
+      # ---------------------------------------------------------
+      # 10. Initialize OpenTofu
+      # ---------------------------------------------------------
+      - name: OpenTofu Init
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
+        run: |
+          tofu init
+
+      # ---------------------------------------------------------
+      # 11. Validate OpenTofu configuration
+      # ---------------------------------------------------------
+      - name: OpenTofu Validate
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
+        run: |
+          tofu validate
+
+      # ---------------------------------------------------------
+      # 12. Create execution plan
+      # ---------------------------------------------------------
+      - name: OpenTofu Plan
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
+        run: |
+          tofu plan -out=tfplan
+
+      # ---------------------------------------------------------
+      # 13. Apply the exact plan generated above
+      # ---------------------------------------------------------
+      - name: OpenTofu Apply
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
+        run: |
+          tofu apply -auto-approve tfplan
+
+      # ---------------------------------------------------------
+      # 14. Always remove secrets and plan files
+      # ---------------------------------------------------------
+      - name: Cleanup temporary files
+        if: always()
+        shell: bash
+        run: |
+          rm -f /tmp/terraform.tfvars
+
+          if [ -n "${{ needs.resolve-environment.outputs.environment }}:-}" ]; then
+            rm -f \
+              "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
+
+            rm -f \
+              "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/tfplan"
+          fi
