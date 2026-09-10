@@ -1,38 +1,189 @@
-name: OpenTofu Deployment
+name: mulit-env-infra-deployment
+# -------------------------------------------------------------------------
+# Environment selection
+#
+# Explicit environment input wins.
+# Otherwise:
+#
+#   prod       -> prod
+#   uat        -> uat
+#   staging    -> staging
+#   sit        -> sit
+#   dev        -> dev
+#   hotfix/*   -> dev
+#   anything   -> dev
+# -------------------------------------------------------------------------
 
 on:
-  push:
-
-  # Allows manual execution from any branch
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (blank = infer from branch)"
+        required: false
+        type: choice
+        options:
+          - ""
+          - dev
+          - staging
+          - uat
+          - sit
+          - prod
 
-# Required for GitHub OIDC
+      branch:
+        description: "Branch to deploy (blank = current workflow branch)"
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   id-token: write
-  contents: write
+  contents: read
 
 jobs:
+
+  # =========================================================================
+  # JOB 1: Resolve environment
+  # =========================================================================
+
+  resolve-environment:
+    name: Resolve target environment
+    runs-on: ubuntu-24.04
+
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      environment_upper: ${{ steps.resolve.outputs.environment_upper }}
+      branch: ${{ steps.resolve.outputs.branch }}
+
+    steps:
+
+      - name: Resolve environment and branch
+        id: resolve
+        shell: bash
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_BRANCH: ${{ inputs.branch }}
+          TRIGGER_REF_NAME: ${{ github.ref_name }}
+
+        run: |
+          set -euo pipefail
+
+          # ---------------------------------------------------------------
+          # Determine branch
+          # ---------------------------------------------------------------
+
+          BRANCH="${INPUT_BRANCH:-$TRIGGER_REF_NAME}"
+
+          if [[ -z "$BRANCH" ]]; then
+            echo "::error::Branch could not be determined."
+            exit 1
+          fi
+
+          # ---------------------------------------------------------------
+          # Explicit environment wins
+          # ---------------------------------------------------------------
+
+          if [[ -n "$INPUT_ENVIRONMENT" ]]; then
+
+            ENVIRONMENT="$INPUT_ENVIRONMENT"
+
+          else
+
+            case "$BRANCH" in
+              prod)
+                ENVIRONMENT="prod"
+                ;;
+
+              uat)
+                ENVIRONMENT="uat"
+                ;;
+
+              staging)
+                ENVIRONMENT="staging"
+                ;;
+
+              sit)
+                ENVIRONMENT="sit"
+                ;;
+
+              dev)
+                ENVIRONMENT="dev"
+                ;;
+
+              hotfix/*)
+                ENVIRONMENT="dev"
+                ;;
+
+              *)
+                # Any unrecognized branch -> DEV
+                ENVIRONMENT="dev"
+                ;;
+            esac
+
+          fi
+
+          # ---------------------------------------------------------------
+          # Convert lowercase environment to uppercase
+          # ---------------------------------------------------------------
+
+          ENVIRONMENT_UPPER="${ENVIRONMENT^^}"
+
+          echo "Branch            : $BRANCH"
+          echo "Environment       : $ENVIRONMENT"
+          echo "Environment upper : $ENVIRONMENT_UPPER"
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "environment_upper=$ENVIRONMENT_UPPER" >> "$GITHUB_OUTPUT"
+
+
+  # =========================================================================
+  # JOB 2: Deploy
+  # =========================================================================
+
   deploy:
-    name: OpenTofu Deploy
+    name: Deploy Chat BE to ${{ needs.resolve-environment.outputs.environment }}
+
+    needs:
+      - resolve-environment
+
     runs-on: ubuntu-latest
     env:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
 
+    # -----------------------------------------------------------------------
+    # Optional GitHub Environment protection
+    #
+    # The resolved environment is still attached here.
+    #
+    # This means PROD can have required reviewers/protection rules.
+    # -----------------------------------------------------------------------
+    environment:
+      name: ${{ needs.resolve-environment.outputs.environment }}
+        echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
+
+    concurrency:
+      group: chat-be-deploy-${{ needs.resolve-environment.outputs.environment }}
+      cancel-in-progress: false
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
 
-      # ---------------------------------------------------------
-      # 1. Checkout the branch that triggered the workflow
-      # ---------------------------------------------------------
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      # =====================================================================
+      # Checkout selected branch
+      # =====================================================================
 
-      - name: Display GitHub context
-        run: |
-          echo "Repository : ${{ github.repository }}"
-          echo "Branch     : ${{ github.ref_name }}"
-          echo "Commit     : ${{ github.sha }}"
-          echo "Event      : ${{ github.event_name }}"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-environment.outputs.branch }}
+          fetch-depth: 0
+  
       # ---------------------------------------------------------
       # 2. Install OpenTofu
       # ---------------------------------------------------------
@@ -65,46 +216,7 @@ jobs:
           chmod 600 /tmp/terraform.tfvars
 
           echo "Temporary terraform.tfvars created."
-
-      # ---------------------------------------------------------
-      # 4. Read Terraform environment from TF_VARS
-      #
-      # Example:
-      # environment = "dev"
-      #
-      # This is NOT a GitHub Environment.
-      # ---------------------------------------------------------
-      - name: Detect OpenTofu environment
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ENVIRONMENT=$(
-            sed -nE \
-              's/^[[:space:]]*environment[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
-              /tmp/terraform.tfvars \
-              | head -n 1
-          )
-
-          if [ -z "$ENVIRONMENT" ]; then
-            echo "ERROR: environment is not defined in TF_VARS."
-            echo "Expected format:"
-            echo 'environment = "dev"'
-            exit 1
-          fi
-
-          # Prevent path traversal because ENVIRONMENT is used
-          # to construct the Terraform working directory.
-          if [[ ! "$ENVIRONMENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            echo "ERROR: Invalid environment value."
-            exit 1
-          fi
-
-          echo "OpenTofu environment detected: $ENVIRONMENT"
-
-          # Make ENVIRONMENT available to subsequent steps
-           echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
-          
+         
       # ---------------------------------------------------------
       # 5. Create environment directory
       #

@@ -89,7 +89,7 @@ jobs:
           if [ -z "$ENVIRONMENT" ]; then
             echo "ERROR: environment is not defined in TF_VARS."
             echo "Expected format:"
-            echo 'environment = "dev"'
+            echo 'environment = "$ENVIRONMENT"'
             exit 1
           fi
 
