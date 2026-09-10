@@ -143,7 +143,7 @@ jobs:
   # =========================================================================
 
   deploy:
-    name: Deploy Chat BE to ${{ needs.resolve-environment.outputs.environment }}
+    name: Deploy  to ${{ needs.resolve-environment.outputs.environment }}
 
     needs:
       - resolve-environment
