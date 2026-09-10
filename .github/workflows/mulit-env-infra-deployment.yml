@@ -237,7 +237,7 @@ jobs:
             "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
       - name: Format tfvars
         run: |
-         tofu fmt "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}}/terraform.tfvars"
+         tofu fmt "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
 
       # ---------------------------------------------------------
       # 7. Configure AWS using GitHub OIDC
