@@ -227,6 +227,7 @@ jobs:
           chmod 600 /tmp/terraform.tfvars
 
           echo "Temporary terraform.tfvars created."
+          cat /tmp/terraform.tfvars
         
           cp \
             /tmp/terraform.tfvars \
