@@ -190,33 +190,7 @@ jobs:
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1
 
-      # ---------------------------------------------------------
-      # 3. Get Terraform/OpenTofu variables from GitHub Secret
-      #
-      # TF_VARS is expected to contain something like:
-      #
-      # environment = "dev"
-      # aws_region  = "ap-south-1"
-      # ...
-      # ---------------------------------------------------------
-      - name: Create temporary terraform.tfvars
-        shell: bash
-        env:
-          TF_VARS: ${{ secrets.TF_VARS }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$TF_VARS" ]; then
-            echo "ERROR: TF_VARS repository secret is empty or not configured."
-            exit 1
-          fi
-
-          printf '%s\n' "$TF_VARS" > /tmp/terraform.tfvars
-
-          chmod 600 /tmp/terraform.tfvars
-
-          echo "Temporary terraform.tfvars created."
-         
+      # --------------------------------------------------------     
       # ---------------------------------------------------------
       # 5. Create environment directory
       #
@@ -231,16 +205,29 @@ jobs:
           set -euo pipefail
 
           mkdir -p \
-            "infrastructure/environments/${ENVIRONMENT}"
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}}"
 
       # ---------------------------------------------------------
       # 6. Copy temporary TF_VARS into selected environment
       # ---------------------------------------------------------
       - name: Create environment terraform.tfvars
         shell: bash
+        env:
+          TF_VARS: ${{ secrets.TF_VARS }}
         run: |
-          set -euo pipefail
+         set -euo pipefail
 
+          if [ -z "$TF_VARS" ]; then
+            echo "ERROR: TF_VARS repository secret is empty or not configured."
+            exit 1
+          fi
+
+          printf '%s\n' "$TF_VARS" > /tmp/terraform.tfvars
+
+          chmod 600 /tmp/terraform.tfvars
+
+          echo "Temporary terraform.tfvars created."
+        
           cp \
             /tmp/terraform.tfvars \
             "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
