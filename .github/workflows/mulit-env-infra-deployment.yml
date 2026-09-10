@@ -143,7 +143,7 @@ jobs:
   # =========================================================================
 
   deploy:
-    name: Deploy Chat BE to ${{ needs.resolve-environment.outputs.environment }}
+    name: Deploy  to ${{ needs.resolve-environment.outputs.environment }}
 
     needs:
       - resolve-environment
@@ -190,33 +190,7 @@ jobs:
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1
 
-      # ---------------------------------------------------------
-      # 3. Get Terraform/OpenTofu variables from GitHub Secret
-      #
-      # TF_VARS is expected to contain something like:
-      #
-      # environment = "dev"
-      # aws_region  = "ap-south-1"
-      # ...
-      # ---------------------------------------------------------
-      - name: Create temporary terraform.tfvars
-        shell: bash
-        env:
-          TF_VARS: ${{ secrets.TF_VARS }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "$TF_VARS" ]; then
-            echo "ERROR: TF_VARS repository secret is empty or not configured."
-            exit 1
-          fi
-
-          printf '%s\n' "$TF_VARS" > /tmp/terraform.tfvars
-
-          chmod 600 /tmp/terraform.tfvars
-
-          echo "Temporary terraform.tfvars created."
-         
+      # --------------------------------------------------------     
       # ---------------------------------------------------------
       # 5. Create environment directory
       #
@@ -231,25 +205,39 @@ jobs:
           set -euo pipefail
 
           mkdir -p \
-            "infrastructure/environments/${ENVIRONMENT}"
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}"
 
       # ---------------------------------------------------------
       # 6. Copy temporary TF_VARS into selected environment
       # ---------------------------------------------------------
       - name: Create environment terraform.tfvars
         shell: bash
+        env:
+          TF_VARS: ${{ secrets.TF_VARS }}
         run: |
-          set -euo pipefail
+         set -euo pipefail
 
+          if [ -z "$TF_VARS" ]; then
+            echo "ERROR: TF_VARS repository secret is empty or not configured."
+            exit 1
+          fi
+
+          printf '%s\n' "$TF_VARS" > /tmp/terraform.tfvars
+
+          chmod 600 /tmp/terraform.tfvars
+
+          echo "Temporary terraform.tfvars created."
+          cat /tmp/terraform.tfvars
+        
           cp \
             /tmp/terraform.tfvars \
-            "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
 
           chmod 600 \
-            "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+            "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
       - name: Format tfvars
         run: |
-         tofu fmt "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+         tofu fmt "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
 
       # ---------------------------------------------------------
       # 7. Configure AWS using GitHub OIDC
@@ -278,7 +266,7 @@ jobs:
       # 10. Initialize OpenTofu
       # ---------------------------------------------------------
       - name: OpenTofu Init
-        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
         run: |
           tofu init
 
@@ -286,7 +274,7 @@ jobs:
       # 11. Validate OpenTofu configuration
       # ---------------------------------------------------------
       - name: OpenTofu Validate
-        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
         run: |
           tofu validate
 
@@ -294,7 +282,7 @@ jobs:
       # 12. Create execution plan
       # ---------------------------------------------------------
       - name: OpenTofu Plan
-        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
         run: |
           tofu plan -out=tfplan
 
@@ -302,7 +290,7 @@ jobs:
       # 13. Apply the exact plan generated above
       # ---------------------------------------------------------
       - name: OpenTofu Apply
-        working-directory: infrastructure/environments/${{ env.ENVIRONMENT }}
+        working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
         run: |
           tofu apply -auto-approve tfplan
 
@@ -315,10 +303,10 @@ jobs:
         run: |
           rm -f /tmp/terraform.tfvars
 
-          if [ -n "${ENVIRONMENT:-}" ]; then
+          if [ -n "${{ needs.resolve-environment.outputs.environment }}:-}" ]; then
             rm -f \
-              "infrastructure/environments/${ENVIRONMENT}/terraform.tfvars"
+              "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/terraform.tfvars"
 
             rm -f \
-              "infrastructure/environments/${ENVIRONMENT}/tfplan"
+              "infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}/tfplan"
           fi
