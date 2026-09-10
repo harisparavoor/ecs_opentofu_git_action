@@ -148,7 +148,7 @@ jobs:
       # AWS_REGION:
       # Repository variable/secret containing AWS region
       # ---------------------------------------------------------
-      - name: Configure AWS credentials@@<aws-access-action-SHA>
+      - name: Configure AWS credentials@<aws-access-action-SHA>
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
