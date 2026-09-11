@@ -137,6 +137,20 @@ jobs:
           echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
           echo "environment_upper=$ENVIRONMENT_UPPER" >> "$GITHUB_OUTPUT"
 
+      - name: Validate branch is allowed to deploy to this environment
+        env:
+          ENVIRONMENT: ${{ steps.resolve.outputs.environment }}
+          BRANCH: ${{ steps.resolve.outputs.branch }}
+        run: |
+          set -euo pipefail
+          # "dev" is permissive: any branch (named or not) may deploy there.
+          # Every other environment only accepts its own exactly-matching
+          # branch name (sit <- sit, stage <- stage, uat <- uat, prod <- prod).
+          if [[ "$ENVIRONMENT" != "dev" && "$BRANCH" != "$ENVIRONMENT" ]]; then
+            echo "::error::Branch '$BRANCH' is not allowed to deploy to environment '$ENVIRONMENT'. Only the '$ENVIRONMENT' branch (or 'dev') may target it." >&2
+            exit 1
+          fi
+          echo "Branch '$BRANCH' is authorized to deploy to '$ENVIRONMENT'."
 
   # =========================================================================
   # JOB 2: Deploy
@@ -162,10 +176,9 @@ jobs:
     # -----------------------------------------------------------------------
     environment:
       name: ${{ needs.resolve-environment.outputs.environment }}
-        echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
 
     concurrency:
-      group: chat-be-deploy-${{ needs.resolve-environment.outputs.environment }}
+      group: ecs-infra-deploy-${{ needs.resolve-environment.outputs.environment }}
       cancel-in-progress: false
 
     permissions:
@@ -285,6 +298,10 @@ jobs:
         working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
         run: |
           tofu plan -out=tfplan
+
+      - name: Waiting for Deployment to Initiate
+        run: sleep 180s
+        shell: bash
 
       # ---------------------------------------------------------
       # 13. Apply the exact plan generated above
