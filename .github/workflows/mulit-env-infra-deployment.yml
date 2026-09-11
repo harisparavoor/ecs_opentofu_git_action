@@ -176,7 +176,6 @@ jobs:
     # -----------------------------------------------------------------------
     environment:
       name: ${{ needs.resolve-environment.outputs.environment }}
-        echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
 
     concurrency:
       group: ecs-infra-deploy-${{ needs.resolve-environment.outputs.environment }}
@@ -299,6 +298,10 @@ jobs:
         working-directory: infrastructure/environments/${{ needs.resolve-environment.outputs.environment }}
         run: |
           tofu plan -out=tfplan
+
+      - name: Waiting for Deployment to Initiate
+        run: sleep 180s
+        shell: bash
 
       # ---------------------------------------------------------
       # 13. Apply the exact plan generated above
