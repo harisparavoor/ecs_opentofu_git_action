@@ -137,6 +137,20 @@ jobs:
           echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
           echo "environment_upper=$ENVIRONMENT_UPPER" >> "$GITHUB_OUTPUT"
 
+      - name: Validate branch is allowed to deploy to this environment
+        env:
+          ENVIRONMENT: ${{ steps.resolve.outputs.environment }}
+          BRANCH: ${{ steps.resolve.outputs.branch }}
+        run: |
+          set -euo pipefail
+          # "dev" is permissive: any branch (named or not) may deploy there.
+          # Every other environment only accepts its own exactly-matching
+          # branch name (sit <- sit, stage <- stage, uat <- uat, prod <- prod).
+          if [[ "$ENVIRONMENT" != "dev" && "$BRANCH" != "$ENVIRONMENT" ]]; then
+            echo "::error::Branch '$BRANCH' is not allowed to deploy to environment '$ENVIRONMENT'. Only the '$ENVIRONMENT' branch (or 'dev') may target it." >&2
+            exit 1
+          fi
+          echo "Branch '$BRANCH' is authorized to deploy to '$ENVIRONMENT'."
 
   # =========================================================================
   # JOB 2: Deploy
