@@ -26,7 +26,6 @@ on:
           - dev
           - staging
           - uat
-          - sit
           - prod
 
       branch:
@@ -101,10 +100,6 @@ jobs:
 
               staging)
                 ENVIRONMENT="staging"
-                ;;
-
-              sit)
-                ENVIRONMENT="sit"
                 ;;
 
               dev)
@@ -300,7 +295,7 @@ jobs:
           tofu plan -out=tfplan
 
       - name: Waiting for Deployment to Initiate
-        run: sleep 180s
+        run: sleep 180
         shell: bash
 
       # ---------------------------------------------------------
