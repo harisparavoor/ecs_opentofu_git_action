@@ -165,7 +165,7 @@ jobs:
         echo "ENVIRONMENT=$ENVIRONMENT" >> "$GITHUB_ENV"
 
     concurrency:
-      group: chat-be-deploy-${{ needs.resolve-environment.outputs.environment }}
+      group: ecs-infra-deploy-${{ needs.resolve-environment.outputs.environment }}
       cancel-in-progress: false
 
     permissions:
