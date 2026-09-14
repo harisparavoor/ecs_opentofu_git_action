@@ -294,7 +294,7 @@ jobs:
           tofu plan -out=tfplan
 
       - name: Waiting for Deployment to Initiate
-        run: sleep 120
+        run: sleep 60
         shell: bash
 
       # ---------------------------------------------------------
