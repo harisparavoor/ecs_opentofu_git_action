@@ -1,5 +1,5 @@
 resource "aws_secretsmanager_secret" "db_credentials" {
-name = "${var.environment}/database/n-credentials"
+name = "${var.project_name}-${var.environment}/database/n-credentials"
 recovery_window_in_days = 0
 }
 
