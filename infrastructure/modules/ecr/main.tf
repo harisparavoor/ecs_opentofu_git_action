@@ -10,7 +10,7 @@ scan_on_push = true
 
 resource "aws_ecr_repository" "backend" {
 name = var.backend_repository_name
-#force_delete = true
+force_delete = true
 image_tag_mutability = "MUTABLE"
 
 image_scanning_configuration {
