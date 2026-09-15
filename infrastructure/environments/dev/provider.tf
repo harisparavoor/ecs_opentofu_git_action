@@ -1,6 +1,6 @@
 provider "aws" {
   region  = var.aws_region
-  profile = "devuser"
+  #profile = "devuser"
   default_tags {
     tags = {
       Environment = var.environment
